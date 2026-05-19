@@ -52,14 +52,30 @@ export async function executeVoteResult(
             `No automatic action taken. Mods should decide manually.`,
         ].join('\n');
     } else {
-        //  Quorum reached — find the winner
+        // ── Quorum reached → find the winner ─────────────────────────
         const max = Math.max(
             tally.remove ?? 0,
             tally.keep ?? 0,
             tally.discuss ?? 0
         );
 
-        if ((tally.remove ?? 0) >= max && tally.remove > (tally.keep ?? 0)) {
+        // Count how many options tied for the top
+        const topOptions = ['remove', 'keep', 'discuss'].filter(
+            (opt) => (tally[opt] ?? 0) === max
+        );
+
+        if (topOptions.length > 1) {
+            // ── Tie — no automatic action ─────────────────────────────
+            status = 'inconclusive';
+            action = 'tie';
+            resultMessage = [
+                `**Vote closed — TIE 🤝**`,
+                ``,
+                `Remove: ${tally.remove} | Keep: ${tally.keep} | Discuss: ${tally.discuss}`,
+                ``,
+                `No automatic action taken due to tied result. Mods should decide manually.`,
+            ].join('\n');
+        } else if (tally.remove === max) {
             // Remove wins
             status = 'closed';
             action = 'remove';
@@ -109,6 +125,27 @@ export async function executeVoteResult(
     await redis.set(`vote:${postId}:meta`, JSON.stringify(meta));
 
     //  Send results to modmail
+    // ── Add named votes to results if not anonymous ──────────────
+    if (!meta.anonymous) {
+        const choicesRaw = await redis.get(`vote:${postId}:choices`);
+        if (choicesRaw) {
+            const choices: Record<string, string> = JSON.parse(choicesRaw);
+            const choiceLines = Object.entries(choices).map(
+                ([mod, choice]) =>
+                    `u/${mod}: ${
+                        choice === 'remove'
+                            ? '🚫 Remove'
+                            : choice === 'keep'
+                              ? '✅ Keep'
+                              : '💬 Discuss'
+                    }`
+            );
+            if (choiceLines.length > 0) {
+                resultMessage +=
+                    '\n\n**Individual votes:**\n' + choiceLines.join('\n');
+            }
+        }
+    }
     const postUrl = `https://www.reddit.com/r/${meta.subredditName}/comments/${postId.replace('t3_', '')}`;
     try {
         await reddit.sendPrivateMessage({
