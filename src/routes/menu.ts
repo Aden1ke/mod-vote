@@ -41,7 +41,7 @@ menu.post('/start-vote', async (c) => {
               type: 'string',
               defaultValue: postId,
               required: true,
-              helpText: 'Auto-filled from the selected post.',
+              hidden: true,
             },
             {
               name: 'reason',
@@ -194,6 +194,79 @@ menu.post('/close-vote', async (c) => {
 
   return c.json<UiResponse>(
     { showToast: '✅ Vote closed. Results posted to modmail.' },
+    200
+  );
+});
+
+
+// VOTE HISTORY
+// Subreddit-level menu item — shows all past votes as a modmail summary.
+// Reads the history list from Redis and fetches meta for each vote.
+menu.post('/vote-history', async (c) => {
+  const subredditName = context.subredditName ?? '';
+
+  // Load ordered list of postIds that have had votes
+  const historyRaw = await redis.get(`history:${subredditName}`);
+  const history: string[] = historyRaw ? JSON.parse(historyRaw) : [];
+
+  if (history.length === 0) {
+    return c.json<UiResponse>(
+      { showToast: 'No vote history found for this subreddit.' },
+      200
+    );
+  }
+
+  // Build summary lines for the last 10 votes
+  const recentHistory = history.slice(0, 10);
+  const lines: string[] = [
+    `**Mod Vote History — r/${subredditName}**`,
+    `Last ${recentHistory.length} votes:`,
+    ``,
+  ];
+
+  for (const postId of recentHistory) {
+    const metaRaw = await redis.get(`vote:${postId}:meta`);
+    if (!metaRaw) continue;
+
+    const meta = JSON.parse(metaRaw);
+    const tallyRaw = await redis.get(`vote:${postId}:tally`);
+    const tally = tallyRaw
+      ? JSON.parse(tallyRaw)
+      : { remove: 0, keep: 0, discuss: 0 };
+
+    // Format outcome with emoji
+    const outcomeEmoji =
+      meta.action === 'remove' ? '🚫 Removed' :
+      meta.action === 'keep'   ? '✅ Kept'    :
+      meta.action === 'discuss'? '💬 Discuss' :
+      meta.status === 'inconclusive' ? '⚠️ Inconclusive' : '🔄 Open';
+
+    const postUrl = `https://www.reddit.com/r/${subredditName}/comments/${postId.replace('t3_', '')}`;
+
+    lines.push(`**${meta.reason}**`);
+    lines.push(`Outcome: ${outcomeEmoji} | Remove: ${tally.remove} | Keep: ${tally.keep} | Discuss: ${tally.discuss}`);
+    lines.push(`Started by: u/${meta.createdBy} | [View Post](${postUrl})`);
+    lines.push(`Status: ${meta.status}`);
+    lines.push(`---`);
+  }
+
+  // Send history as modmail to the mod team
+  try {
+    await reddit.sendPrivateMessage({
+      to: `/r/${subredditName}`,
+      subject: `[Mod Vote History] r/${subredditName}`,
+      text: lines.join('\n'),
+    });
+  } catch (e) {
+    console.error('History modmail failed:', e);
+    return c.json<UiResponse>(
+      { showToast: '❌ Failed to send history. Try again.' },
+      200
+    );
+  }
+
+  return c.json<UiResponse>(
+    { showToast: '📋 Vote history sent to modmail.' },
     200
   );
 });

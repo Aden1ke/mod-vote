@@ -1,50 +1,57 @@
 {
-  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "mod-vote",
-  "server": {
-    "dir": "dist/server",
-    "entry": "index.cjs"
-  },
-  "menu": {
-    "items": [
-      {
-        "label": "🗳️ Start Mod Vote",
-        "description": "Start a mod team vote on this post",
-        "location": "post",
-        "forUserType": "moderator",
-        "endpoint": "/internal/menu/start-vote"
-      },
-      {
-        "label": "🗳️ Cast My Vote",
-        "description": "Cast your vote on the active mod vote",
-        "location": "post",
-        "forUserType": "moderator",
-        "endpoint": "/internal/menu/cast-vote"
-      },
-      {
-        "label": "📊 Close Vote Now",
-        "description": "Manually close and execute the active vote",
-        "location": "post",
-        "forUserType": "moderator",
-        "endpoint": "/internal/menu/close-vote"
-      }
-    ]
-  },
-  "forms": {
-    "startVote": "/internal/form/start-vote-submit",
-    "castVote": "/internal/form/cast-vote-submit"
-  },
-  "triggers": {
-    "onAppInstall": "/internal/triggers/on-app-install"
-  },
-  "scripts": {
-    "build": "vite build",
-    "dev": "vite build --watch"
-  },
-  "permissions": {
-    "reddit": true
-  },
-  "dev": {
-    "subreddit": "mod_vote_dev"
-  }
+    "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+    "name": "mod-vote",
+    "server": {
+        "dir": "dist/server",
+        "entry": "index.cjs"
+    },
+    "menu": {
+        "items": [
+            {
+                "label": "🗳️ Start Mod Vote",
+                "description": "Start a mod team vote on this post",
+                "location": "post",
+                "forUserType": "moderator",
+                "endpoint": "/internal/menu/start-vote"
+            },
+            {
+                "label": "🗳️ Cast My Vote",
+                "description": "Cast your vote on the active mod vote",
+                "location": "post",
+                "forUserType": "moderator",
+                "endpoint": "/internal/menu/cast-vote"
+            },
+            {
+                "label": "📊 Close Vote Now",
+                "description": "Manually close and execute the active vote",
+                "location": "post",
+                "forUserType": "moderator",
+                "endpoint": "/internal/menu/close-vote"
+            },
+            {
+                "label": "📋 Vote History",
+                "description": "View recent mod vote history for this subreddit",
+                "location": "subreddit",
+                "forUserType": "moderator",
+                "endpoint": "/internal/menu/vote-history"
+            }
+        ]
+    },
+    "forms": {
+        "startVote": "/internal/form/start-vote-submit",
+        "castVote": "/internal/form/cast-vote-submit"
+    },
+    "triggers": {
+        "onAppInstall": "/internal/triggers/on-app-install"
+    },
+    "scripts": {
+        "build": "vite build",
+        "dev": "vite build --watch"
+    },
+    "permissions": {
+        "reddit": true
+    },
+    "dev": {
+        "subreddit": "mod_vote_dev"
+    }
 }
