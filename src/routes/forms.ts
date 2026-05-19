@@ -38,6 +38,7 @@ forms.post('/start-vote-submit', async (c) => {
     reason,
     createdBy,
     deadline,
+    createdAt: Date.now(),
     anonymous: Boolean(anonymous),
     quorum: Number(quorum) || 2,
     status: 'open', // open | closed | inconclusive

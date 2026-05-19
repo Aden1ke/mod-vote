@@ -249,7 +249,6 @@ menu.post('/close-vote', async (c) => {
 menu.post('/vote-history', async (c) => {
     const subredditName = context.subredditName ?? '';
 
-    // Load ordered list of postIds that have had votes
     const historyRaw = await redis.get(`history:${subredditName}`);
     const history: string[] = historyRaw ? JSON.parse(historyRaw) : [];
 
@@ -260,11 +259,13 @@ menu.post('/vote-history', async (c) => {
         );
     }
 
-    // Build summary lines for the last 10 votes
     const recentHistory = history.slice(0, 10);
+    const totalCount = history.length;
+    const showingCount = recentHistory.length;
+
     const lines: string[] = [
         `**Mod Vote History — r/${subredditName}**`,
-        `Last ${recentHistory.length} votes:`,
+        `Showing ${showingCount} of ${totalCount} votes`,
         ``,
     ];
 
@@ -278,7 +279,7 @@ menu.post('/vote-history', async (c) => {
             ? JSON.parse(tallyRaw)
             : { remove: 0, keep: 0, discuss: 0 };
 
-        // Format outcome with emoji
+        // Format outcome emoji
         const outcomeEmoji =
             meta.action === 'remove'
                 ? '🚫 Removed'
@@ -286,38 +287,89 @@ menu.post('/vote-history', async (c) => {
                   ? '✅ Kept'
                   : meta.action === 'discuss'
                     ? '💬 Discuss'
-                    : meta.status === 'inconclusive'
-                      ? '⚠️ Inconclusive'
-                      : '🔄 Open';
+                    : meta.action === 'tie'
+                      ? '🤝 Tie'
+                      : meta.status === 'inconclusive'
+                        ? '⚠️ Inconclusive'
+                        : '🔄 Open';
+
+        // Format created date
+        const createdAt = meta.createdAt
+            ? new Date(meta.createdAt).toUTCString()
+            : 'Unknown date';
+
+        // Format time remaining for open votes
+        let timeInfo = '';
+        if (meta.status === 'open') {
+            const timeLeft = meta.deadline - Date.now();
+            if (timeLeft <= 0) {
+                timeInfo = '⏰ Deadline passed — awaiting close';
+            } else {
+                const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+                const minutes = Math.floor(
+                    (timeLeft % (1000 * 60 * 60)) / (1000 * 60)
+                );
+                timeInfo =
+                    hours > 0
+                        ? `Closes in ${hours}h ${minutes}m`
+                        : `Closes in ${minutes}m`;
+            }
+        }
 
         const postUrl = `https://www.reddit.com/r/${subredditName}/comments/${postId.replace('t3_', '')}`;
 
         lines.push(`**${meta.reason}**`);
+        lines.push(`Created: ${createdAt}`);
         lines.push(
             `Outcome: ${outcomeEmoji} | Remove: ${tally.remove} | Keep: ${tally.keep} | Discuss: ${tally.discuss}`
         );
         lines.push(`Started by: u/${meta.createdBy} | [View Post](${postUrl})`);
-        lines.push(`Status: ${meta.status}`);
+
+        // Show time remaining for open votes
+        if (timeInfo) {
+            lines.push(timeInfo);
+        }
+
+        // Show individual choices for closed named votes
+        if (!meta.anonymous && meta.status === 'closed') {
+            const choicesRaw = await redis.get(`vote:${postId}:choices`);
+            if (choicesRaw) {
+                const choices: Record<string, string> = JSON.parse(choicesRaw);
+                const choiceLines = Object.entries(choices).map(
+                    ([mod, choice]) =>
+                        `u/${mod}: ${
+                            choice === 'remove'
+                                ? '🚫 Remove'
+                                : choice === 'keep'
+                                  ? '✅ Keep'
+                                  : '💬 Discuss'
+                        }`
+                );
+                if (choiceLines.length > 0) {
+                    lines.push(`Individual votes: ${choiceLines.join(', ')}`);
+                }
+            }
+        }
+
         lines.push(`---`);
     }
 
-    // Send history as modmail to the mod team
     try {
         await reddit.sendPrivateMessage({
             to: `/r/${subredditName}`,
-            subject: `[Mod Vote History] r/${subredditName}`,
+            subject: `[Mod Vote History] r/${subredditName} — ${totalCount} vote${totalCount !== 1 ? 's' : ''}`,
             text: lines.join('\n'),
         });
     } catch (e) {
         console.error('History modmail failed:', e);
         return c.json<UiResponse>(
-            { showToast: '❌ Failed to send history. Try again.' },
+            { showToast: '❌ Failed to send history.' },
             200
         );
     }
 
     return c.json<UiResponse>(
-        { showToast: '📋 Vote history sent to modmail.' },
+        { showToast: `📋 Vote history sent to modmail (${totalCount} votes).` },
         200
     );
 });
