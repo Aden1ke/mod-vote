@@ -90,8 +90,9 @@ forms.post('/start-vote-submit', async (c) => {
         // Don't fail the whole operation if modmail has an issue
     }
 
+    const deadlineReadable = new Date(deadline).toUTCString();
     return c.json<UiResponse>(
-        { showToast: '✅ Vote started! All mods notified via modmail.' },
+        { showToast: `✅ Vote started! Closes: ${deadlineReadable}` },
         200
     );
 });

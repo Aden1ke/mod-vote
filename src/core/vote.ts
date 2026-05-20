@@ -43,16 +43,16 @@ export async function executeVoteResult(
         resultMessage = [
             `**Vote closed — Inconclusive ⚠️**`,
             ``,
-            //`Quorum not reached: ${totalVotes}/${meta.quorum} votes cast`,
-            //`Remove: ${tally.remove} | Keep: ${tally.keep} | Discuss: ${tally.discuss}`,
             `Quorum not reached: ${totalVotes}/${meta.quorum} votes cast`,
             ``,
             `Remove: ${tally.remove} | Keep: ${tally.keep} | Discuss: ${tally.discuss}`,
             ``,
-            `No automatic action taken. Mods should decide manually.`,
+            `No automatic action taken.`,
+            ``,
+            `u/${meta.createdBy} please make a final call on this vote or restart it with a longer deadline.`,
         ].join('\n');
     } else {
-        // ── Quorum reached → find the winner ─────────────────────────
+        //  Quorum reached → find the winner
         const max = Math.max(
             tally.remove ?? 0,
             tally.keep ?? 0,
@@ -65,7 +65,7 @@ export async function executeVoteResult(
         );
 
         if (topOptions.length > 1) {
-            // ── Tie — no automatic action ─────────────────────────────
+            // Tie — no automatic action
             status = 'inconclusive';
             action = 'tie';
             resultMessage = [
@@ -125,7 +125,7 @@ export async function executeVoteResult(
     await redis.set(`vote:${postId}:meta`, JSON.stringify(meta));
 
     //  Send results to modmail
-    // ── Add named votes to results if not anonymous ──────────────
+    //  Add named votes to results if not anonymous
     if (!meta.anonymous) {
         const choicesRaw = await redis.get(`vote:${postId}:choices`);
         if (choicesRaw) {

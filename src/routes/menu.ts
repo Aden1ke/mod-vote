@@ -368,13 +368,29 @@ menu.post('/vote-history', async (c) => {
         );
     }
 
+    // Count votes by status
+    let openCount = 0;
+    let closedCount = 0;
+    let inconclusiveCount = 0;
+
+    for (const postId of recentHistory) {
+        const metaRaw = await redis.get(`vote:${postId}:meta`);
+        if (!metaRaw) continue;
+        const meta = JSON.parse(metaRaw);
+        if (meta.status === 'open') openCount++;
+        else if (meta.status === 'closed') closedCount++;
+        else inconclusiveCount++;
+    }
+
     return c.json<UiResponse>(
-        { showToast: `📋 Vote history sent to modmail (${totalCount} votes).` },
+        {
+            showToast: `📋 History sent — ${openCount} open, ${closedCount} closed, ${inconclusiveCount} inconclusive`,
+        },
         200
     );
 });
 
-// ─── PARTICIPATION STATS ─────────────────────────────────────────────
+//  PARTICIPATION STATS
 // Shows how many votes each mod has participated in.
 // Reads the history list and voters list for each vote from Redis.
 menu.post('/participation-stats', async (c) => {
