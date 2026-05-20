@@ -34,6 +34,13 @@
                 "location": "subreddit",
                 "forUserType": "moderator",
                 "endpoint": "/internal/menu/vote-history"
+            },
+            {
+                "label": "📊 Participation Stats",
+                "description": "View mod participation in recent votes",
+                "location": "subreddit",
+                "forUserType": "moderator",
+                "endpoint": "/internal/menu/participation-stats"
             }
         ]
     },

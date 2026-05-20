@@ -373,3 +373,73 @@ menu.post('/vote-history', async (c) => {
         200
     );
 });
+
+// ─── PARTICIPATION STATS ─────────────────────────────────────────────
+// Shows how many votes each mod has participated in.
+// Reads the history list and voters list for each vote from Redis.
+menu.post('/participation-stats', async (c) => {
+    const subredditName = context.subredditName ?? '';
+
+    const historyRaw = await redis.get(`history:${subredditName}`);
+    const history: string[] = historyRaw ? JSON.parse(historyRaw) : [];
+
+    if (history.length === 0) {
+        return c.json<UiResponse>({ showToast: 'No vote history found.' }, 200);
+    }
+
+    // Count participation per mod across all votes
+    const participation: Record<string, number> = {};
+    const recentHistory = history.slice(0, 20); // last 20 votes
+
+    for (const postId of recentHistory) {
+        const votersRaw = await redis.get(`vote:${postId}:voters`);
+        const voters: string[] = votersRaw ? JSON.parse(votersRaw) : [];
+        for (const voter of voters) {
+            participation[voter] = (participation[voter] ?? 0) + 1;
+        }
+    }
+
+    const totalVotes = recentHistory.length;
+
+    // Sort by participation count descending
+    const sorted = Object.entries(participation).sort((a, b) => b[1] - a[1]);
+
+    const lines: string[] = [
+        `**Mod Participation Stats — r/${subredditName}**`,
+        `Based on last ${totalVotes} votes`,
+        ``,
+    ];
+
+    if (sorted.length === 0) {
+        lines.push('No mod has voted yet.');
+    } else {
+        for (const [mod, count] of sorted) {
+            const rate = Math.round((count / totalVotes) * 100);
+            const bar =
+                '█'.repeat(Math.round(rate / 10)) +
+                '░'.repeat(10 - Math.round(rate / 10));
+            lines.push(
+                `u/${mod}: ${count}/${totalVotes} votes (${rate}%) ${bar}`
+            );
+        }
+    }
+
+    try {
+        await reddit.sendPrivateMessage({
+            to: `/r/${subredditName}`,
+            subject: `[Mod Vote] Participation Stats — r/${subredditName}`,
+            text: lines.join('\n'),
+        });
+    } catch (e) {
+        console.error('Participation stats modmail failed:', e);
+        return c.json<UiResponse>(
+            { showToast: '❌ Failed to send stats.' },
+            200
+        );
+    }
+
+    return c.json<UiResponse>(
+        { showToast: '📊 Participation stats sent to modmail.' },
+        200
+    );
+});
