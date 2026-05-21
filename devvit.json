@@ -41,6 +41,13 @@
                 "location": "subreddit",
                 "forUserType": "moderator",
                 "endpoint": "/internal/menu/participation-stats"
+            },
+            {
+                "label": "❌ Cancel Vote",
+                "description": "Cancel the active vote on this post",
+                "location": "post",
+                "forUserType": "moderator",
+                "endpoint": "/internal/menu/cancel-vote"
             }
         ]
     },

@@ -243,6 +243,69 @@ menu.post('/close-vote', async (c) => {
     );
 });
 
+// CANCEL VOTE
+// Allows the vote creator to cancel an open vote with no action taken.
+// Only the mod who started the vote can cancel it.
+menu.post('/cancel-vote', async (c) => {
+    const request = await c.req.json<MenuItemRequest>();
+    const postId = request.targetId;
+
+    const metaRaw = await redis.get(`vote:${postId}:meta`);
+    if (!metaRaw) {
+        return c.json<UiResponse>(
+            { showToast: 'No active vote on this post.' },
+            200
+        );
+    }
+
+    const meta = JSON.parse(metaRaw);
+
+    if (meta.status !== 'open') {
+        return c.json<UiResponse>(
+            { showToast: 'This vote is already closed.' },
+            200
+        );
+    }
+
+    // Only the mod who started the vote can cancel it
+    if (context.username !== meta.createdBy) {
+        return c.json<UiResponse>(
+            {
+                showToast: `Only u/${meta.createdBy} who started this vote can cancel it.`,
+            },
+            200
+        );
+    }
+
+    // Mark as cancelled
+    meta.status = 'cancelled';
+    meta.action = 'cancelled';
+    await redis.set(`vote:${postId}:meta`, JSON.stringify(meta));
+
+    // Notify mods via modmail
+    try {
+        await reddit.sendPrivateMessage({
+            to: `/r/${meta.subredditName}`,
+            subject: `[Mod Vote Cancelled] ${meta.reason}`,
+            text: [
+                `**Mod vote cancelled by u/${context.username}**`,
+                ``,
+                `**Reason:** ${meta.reason}`,
+                `**Post:** https://www.reddit.com/r/${meta.subredditName}/comments/${postId.replace('t3_', '')}`,
+                ``,
+                `No action has been taken. The vote has been cancelled.`,
+            ].join('\n'),
+        });
+    } catch (e) {
+        console.error('Cancel modmail failed:', e);
+    }
+
+    return c.json<UiResponse>(
+        { showToast: '❌ Vote cancelled. Mods notified.' },
+        200
+    );
+});
+
 // VOTE HISTORY
 // Subreddit-level menu item — shows all past votes as a modmail summary.
 // Reads the history list from Redis and fetches meta for each vote.
